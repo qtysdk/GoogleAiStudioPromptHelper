@@ -6,6 +6,22 @@ const MENU_OPTION_CLASS = 'menu-option';
 const SELECTED_CLASS = 'selected';
 const SYSTEM_INSTRUCTIONS_SELECTOR = 'textarea[aria-label="System instructions"]';
 
+// Default commands to use when storage API fails
+const DEFAULT_COMMANDS = [
+    {
+        name: 'System Prompt',
+        description: 'Set system prompt',
+        template: 'You are an AI assistant that specializes in [specialty]. When responding to queries about [topic], prioritize [approach].',
+        isSystemPrompt: true
+    },
+    {
+        name: 'Project Review',
+        description: 'Analyze source code before collaboration',
+        template: "Please carefully analyze the attached source code to understand the project's structure, functionality, and dependencies. Wait for my instructions before proceeding.",
+        isSystemPrompt: false
+    }
+];
+
 // Cached DOM elements
 let menuContainer = null;
 let inputAreas = [];
@@ -94,23 +110,33 @@ function showSlashCommandMenu(inputElement, menuContainer) {
     const posTop = rect.top + lineHeight;
     const posLeft = rect.left + 20;
 
-    chrome.storage.sync.get(['commands'], function (result) {
-        const defaultCommands = [
-            {
-                name: 'System Prompt',
-                description: 'Set system prompt',
-                template: 'You are an AI assistant that specializes in [specialty]. When responding to queries about [topic], prioritize [approach].',
-                isSystemPrompt: true
-            },
-        ];
-        const commands = result.commands || defaultCommands;
-
-        // Show Command Menu
-        showCommandMenu(menuContainer, commands, posTop, posLeft, (selectedCommand) => {
+    // FIX: Wrap in try-catch and use DEFAULT_COMMANDS as fallback if storage API fails
+    try {
+        chrome.storage.sync.get(['commands'], function(result) {
+            try {
+                // Show Command Menu with stored commands or defaults
+                const commands = result.commands || DEFAULT_COMMANDS;
+                showCommandMenu(menuContainer, commands, posTop, posLeft, (selectedCommand) => {
+                    clearInputElement(inputElement);
+                    handleCommandSelection(inputElement, selectedCommand, menuContainer);
+                });
+            } catch (innerError) {
+                console.error('Error processing commands:', innerError);
+                // Fallback to default commands
+                showCommandMenu(menuContainer, DEFAULT_COMMANDS, posTop, posLeft, (selectedCommand) => {
+                    clearInputElement(inputElement);
+                    handleCommandSelection(inputElement, selectedCommand, menuContainer);
+                });
+            }
+        });
+    } catch (error) {
+        console.error('Failed to access chrome.storage:', error);
+        // Fallback to default commands when storage API completely fails
+        showCommandMenu(menuContainer, DEFAULT_COMMANDS, posTop, posLeft, (selectedCommand) => {
             clearInputElement(inputElement);
             handleCommandSelection(inputElement, selectedCommand, menuContainer);
         });
-    });
+    }
 }
 
 // Clear the content of the input element
