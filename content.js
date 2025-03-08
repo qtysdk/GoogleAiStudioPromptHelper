@@ -63,6 +63,9 @@ function createInputEventHandler(inputElement, menuContainer) {
             showSlashCommandMenu(inputElement, menuContainer);
         } else if (e.key === 'Escape' || (e.type === 'click' && menuContainer && !menuContainer.contains(e.target))) {
             hideCommandMenu(menuContainer);
+        } else if (menuContainer.style.display !== 'none' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+            // 確保當選單顯示時，輸入元素不捕獲方向鍵事件
+            e.preventDefault();
         }
     };
 }
@@ -320,42 +323,51 @@ function showCommandMenu(menuContainer, commands, top, left, onSelect) {
         menuContainer.style.visibility = 'visible';
     });
 
-    // Add up/down/Enter key functionality
-    document.addEventListener('keydown', function menuKeyHandler(e) {
+    // Create a dedicated global key handler for the menu navigation
+    const menuKeyHandler = function(e) {
         if (menuContainer.style.display === 'none') {
             document.removeEventListener('keydown', menuKeyHandler);
             return;
         }
 
-        const selectedOption = menuContainer.querySelector('.' + SELECTED_CLASS);
+        // 處理方向鍵導航
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+            e.preventDefault(); // 防止頁面捲動
+            e.stopPropagation(); // 防止事件冒泡到其他處理程序
 
-        if (e.key === 'ArrowDown') {
-            e.preventDefault();
-            const nextOption = selectedOption.nextElementSibling;
-            if (nextOption && nextOption.classList.contains(MENU_OPTION_CLASS)) {
-                selectedOption.classList.remove(SELECTED_CLASS);
-                nextOption.classList.add(SELECTED_CLASS);
-                nextOption.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            const options = Array.from(menuContainer.querySelectorAll('.' + MENU_OPTION_CLASS));
+            const selectedOption = menuContainer.querySelector('.' + SELECTED_CLASS);
+            const currentIndex = options.indexOf(selectedOption);
+            let nextIndex;
+
+            if (e.key === 'ArrowDown') {
+                nextIndex = (currentIndex + 1) % options.length; // 循環到第一個
+            } else { // ArrowUp
+                nextIndex = (currentIndex - 1 + options.length) % options.length; // 循環到最後一個
             }
-        } else if (e.key === 'ArrowUp') {
-            e.preventDefault();
-            const prevOption = selectedOption.previousElementSibling;
-            if (prevOption && prevOption.classList.contains(MENU_OPTION_CLASS)) {
-                selectedOption.classList.remove(SELECTED_CLASS);
-                prevOption.classList.add(SELECTED_CLASS);
-                prevOption.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-            }
+
+            if (selectedOption) selectedOption.classList.remove(SELECTED_CLASS);
+            options[nextIndex].classList.add(SELECTED_CLASS);
+            options[nextIndex].scrollIntoView({ behavior: 'smooth', block: 'nearest' });
         } else if (e.key === 'Enter') {
             e.preventDefault();
-            const commandIndex = Array.from(menuContainer.querySelectorAll('.' + MENU_OPTION_CLASS)).indexOf(selectedOption);
-            onSelect(commands[commandIndex]);
+            e.stopPropagation();
+            const selectedOption = menuContainer.querySelector('.' + SELECTED_CLASS);
+            if (selectedOption) {
+                const commandIndex = Array.from(menuContainer.querySelectorAll('.' + MENU_OPTION_CLASS)).indexOf(selectedOption);
+                onSelect(commands[commandIndex]);
+            }
             document.removeEventListener('keydown', menuKeyHandler);
         } else if (e.key === 'Escape') {
             e.preventDefault();
-            menuContainer.style.display = 'none';
+            hideCommandMenu(menuContainer);
             document.removeEventListener('keydown', menuKeyHandler);
         }
-    });
+    };
+
+    // 移除任何現有的 keydown 事件監聽器並添加新的
+    document.removeEventListener('keydown', menuKeyHandler);
+    document.addEventListener('keydown', menuKeyHandler, { capture: true });
 }
 
 // Insert template into input field
