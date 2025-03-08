@@ -7,11 +7,14 @@
 <body>
   <h1>Command Settings</h1>
   <div id="commandList" class="command-list"></div>
-  <div class="actions">
+  <div class="actions-grid">
     <button id="addCommand" class="add-btn">Add New Command</button>
     <button id="saveAll" class="save-btn">Save All Changes</button>
+    <div class="info-message">
+      Restoring defaults will only add missing default commands. Your custom commands will be preserved.
+    </div>
+    <button id="restoreDefaults" class="restore-btn">Restore Defaults</button>
   </div>
-
   <script src="options.js"></script>
 </body>
-</html> 
+</html>

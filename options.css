@@ -45,6 +45,7 @@ textarea {
   cursor: pointer;
 }
 
+/* Button Styles (same as before) */
 .button-group {
   display: flex;
   gap: 10px;
@@ -87,11 +88,32 @@ button {
   background-color: #e53935;
 }
 
-.actions {
-  display: flex;
-  justify-content: center;
-  gap: 20px;
+/* New Grid Styles */
+.actions-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr; /* Two equal columns */
+  grid-template-rows: auto auto; /* Two rows, auto height */
+  gap: 10px; /* Spacing between grid items */
   margin-top: 20px;
+  align-items: center; /* Vertically align items */
+}
+
+.actions-grid > button {
+  width: 100%; /* Make buttons fill their grid cell */
+}
+
+.info-message {
+  text-align: center;
+  font-style: italic;
+  color: #777;
+  /* Move info message to span both columns */
+  grid-column: 1 / span 2;
+}
+
+#restoreDefaults {
+  /* Move restore defaults button to span both columns */
+  grid-column: 1 / span 2;
+  width: 100%;
 }
 
 .command-name {
@@ -100,4 +122,4 @@ button {
 
 .command-description {
   color: #666;
-} 
+}

@@ -1,17 +1,23 @@
 // Default commands
 const defaultCommands = [
-  { 
+  {
     name: 'System Prompt',
     description: 'Set system prompt',
     template: 'You are an AI assistant that specializes in [specialty]. When responding to queries about [topic], prioritize [approach].',
     isSystemPrompt: true
+  },
+  {
+    name: 'Project Review',
+    description: 'Analyze source code before collaboration',
+    template: "Please carefully analyze the attached source code to understand the project's structure, functionality, and dependencies. Wait for my instructions before proceeding.",
+    isSystemPrompt: false
   }
 ];
 
 // Load commands from storage
 function loadCommands() {
   chrome.storage.sync.get(['commands'], function(result) {
-    const commands = result.commands || defaultCommands;
+    const commands = result.commands || []; // Start with an empty array if nothing is stored
     displayCommands(commands);
   });
 }
@@ -24,20 +30,20 @@ function displayCommands(commands) {
   commands.forEach((command, index) => {
     const commandDiv = document.createElement('div');
     commandDiv.className = 'command-item';
-    commandDiv.innerHTML = `
-      <input type="text" class="command-name" value="${command.name}" placeholder="Command Name">
-      <input type="text" class="command-description" value="${command.description}" placeholder="Description">
-      <textarea class="command-template" placeholder="Template">${command.template}</textarea>
-      <div class="checkbox-group">
-        <label>
-          <input type="checkbox" class="is-system-prompt" ${command.isSystemPrompt ? 'checked' : ''}>
-          Is System Prompt
-        </label>
-      </div>
-      <div class="button-group">
-        <button class="delete-btn" onclick="deleteCommand(${index})">Delete</button>
-      </div>
-    `;
+    let commandHTML = '';
+    commandHTML += '<input type="text" class="command-name" value="' + command.name + '" placeholder="Command Name">';
+    commandHTML += '<input type="text" class="command-description" value="' + command.description + '" placeholder="Description">';
+    commandHTML += '<textarea class="command-template" placeholder="Template">' + command.template + '</textarea>';
+    commandHTML += '<div class="checkbox-group">';
+    commandHTML += '<label>';
+    commandHTML += '<input type="checkbox" class="is-system-prompt" ' + (command.isSystemPrompt ? 'checked' : '') + '>';
+    commandHTML += 'Is System Prompt';
+    commandHTML += '</label>';
+    commandHTML += '</div>';
+    commandHTML += '<div class="button-group">';
+    commandHTML += '<button class="delete-btn" onclick="deleteCommand(' + index + ')">Delete</button>';
+    commandHTML += '</div>';
+    commandDiv.innerHTML = commandHTML;
     container.appendChild(commandDiv);
   });
 }
@@ -54,6 +60,7 @@ function saveCommands() {
 
   chrome.storage.sync.set({ commands }, function() {
     alert('Commands saved successfully!');
+    loadCommands(); // Reload to reflect changes
   });
 }
 
@@ -62,20 +69,20 @@ function addCommand() {
   const container = document.getElementById('commandList');
   const commandDiv = document.createElement('div');
   commandDiv.className = 'command-item';
-  commandDiv.innerHTML = `
-    <input type="text" class="command-name" placeholder="Command Name">
-    <input type="text" class="command-description" placeholder="Description">
-    <textarea class="command-template" placeholder="Template"></textarea>
-    <div class="checkbox-group">
-      <label>
-        <input type="checkbox" class="is-system-prompt">
-        Is System Prompt
-      </label>
-    </div>
-    <div class="button-group">
-      <button class="delete-btn" onclick="this.parentElement.parentElement.remove()">Delete</button>
-    </div>
-  `;
+  let commandHTML = '';
+  commandHTML += '<input type="text" class="command-name" placeholder="Command Name">';
+  commandHTML += '<input type="text" class="command-description" placeholder="Description">';
+  commandHTML += '<textarea class="command-template" placeholder="Template"></textarea>';
+  commandHTML += '<div class="checkbox-group">';
+  commandHTML += '<label>';
+  commandHTML += '<input type="checkbox" class="is-system-prompt">';
+  commandHTML += 'Is System Prompt';
+  commandHTML += '</label>';
+  commandHTML += '</div>';
+  commandHTML += '<div class="button-group">';
+  commandHTML += '<button class="delete-btn" onclick="this.parentElement.parentElement.remove()">Delete</button>';
+  commandHTML += '</div>';
+  commandDiv.innerHTML = commandHTML;
   container.appendChild(commandDiv);
 }
 
@@ -85,7 +92,27 @@ function deleteCommand(index) {
   commandItems[index].remove();
 }
 
+// Restore Defaults
+function restoreDefaults() {
+  chrome.storage.sync.get(['commands'], function(result) {
+    let existingCommands = result.commands || [];
+    const existingCommandNames = existingCommands.map(cmd => cmd.name);
+
+    defaultCommands.forEach(defaultCommand => {
+      if (!existingCommandNames.includes(defaultCommand.name)) {
+        existingCommands.push(defaultCommand);
+      }
+    });
+
+    chrome.storage.sync.set({ commands: existingCommands }, function() {
+      alert('Default commands restored (if missing)!');
+      loadCommands(); // Reload to reflect changes
+    });
+  });
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', loadCommands);
 document.getElementById('addCommand').addEventListener('click', addCommand);
-document.getElementById('saveAll').addEventListener('click', saveCommands); 
+document.getElementById('saveAll').addEventListener('click', saveCommands);
+document.getElementById('restoreDefaults').addEventListener('click', restoreDefaults);
