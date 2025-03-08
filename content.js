@@ -1,305 +1,396 @@
+// content.js
+
+// Constants
+const MENU_CONTAINER_CLASS = 'slash-command-menu';
+const MENU_OPTION_CLASS = 'menu-option';
+const SELECTED_CLASS = 'selected';
+const SYSTEM_INSTRUCTIONS_SELECTOR = 'textarea[aria-label="System instructions"]';
+
+// Cached DOM elements
+let menuContainer = null;
+let inputAreas = [];
+
 // Main initialization
 function init() {
-  setupSlashCommands();
-  // Log for debugging
-  console.log('Google AI Studio Helper initialized');
+    menuContainer = createMenuContainer(); // Create menu container only once
+    setupSlashCommands();
+    console.log('Google AI Studio Helper initialized');
 }
 
-// Main setup function
+// Setup slash commands functionality
 function setupSlashCommands() {
-  // Find all possible input areas
-  setInterval(() => {
-    const inputAreas = document.querySelectorAll('textarea, [contenteditable="true"], .ProseMirror, .cm-content');
-    
-    inputAreas.forEach(inputArea => {
-      if (!inputArea.dataset.slashCommandsInitialized) {
-        console.log('Initializing slash commands for:', inputArea);
-        initializeSlashCommands(inputArea);
-        inputArea.dataset.slashCommandsInitialized = "true";
-      }
+    const newInputAreas = document.querySelectorAll('textarea, [contenteditable="true"], .ProseMirror, .cm-content');
+
+    newInputAreas.forEach(inputArea => {
+        if (!inputArea.dataset.slashCommandsInitialized) {
+            console.log('Initializing slash commands for:', inputArea);
+            initializeSlashCommands(inputArea);
+            inputArea.dataset.slashCommandsInitialized = "true";
+        }
     });
-  }, 1000); // Check for new input areas every second
+
+    inputAreas = Array.from(newInputAreas); // Update inputAreas
 }
 
-// Initialize slash command functionality
+// Initialize slash commands for a single input element
 function initializeSlashCommands(inputElement) {
-  // Create command menu container
-  const menuContainer = document.createElement('div');
-  menuContainer.className = 'slash-command-menu';
-  menuContainer.style.display = 'none';
-  document.body.appendChild(menuContainer);
-  
-  // Default commands
-  const defaultCommands = [
-    { 
-      name: 'System Prompt', 
-      description: 'Set system prompt', 
-      template: 'You are an AI assistant that specializes in [specialty]. When responding to queries about [topic], prioritize [approach].',
-      isSystemPrompt: true
-    }
-  ];
-  
-  // Listen for input events
-  const eventHandler = (e) => {
-    console.log('Input event:', e.type, e.key || e.data);
-    
-    // Get current input content
-    let currentContent = '';
-    if (inputElement.tagName.toLowerCase() === 'textarea') {
-      currentContent = inputElement.value;
-    } else { // contenteditable
-      currentContent = inputElement.textContent;
-    }
-    
-    // Check if the last character entered is '/' and it's the only content
-    const isSlashInput = 
-      ((e.type === 'input' && e.data === '/') ||
-       (e.type === 'keydown' && e.key === '/') ||
-       (e.type === 'keypress' && e.key === '/')) &&
-      (currentContent.trim() === '/' || currentContent.trim() === '');
-    
-    if (isSlashInput) {
-      console.log('Slash detected!');
-      e.preventDefault(); // Prevent default slash input
-      
-      // Get cursor position
-      const rect = inputElement.getBoundingClientRect();
-      const lineHeight = parseInt(window.getComputedStyle(inputElement).lineHeight) || 20;
-      
-      // Calculate menu position
-      let posTop = rect.top + lineHeight;
-      let posLeft = rect.left + 20;
-      
-      // Get commands from storage and show menu
-      chrome.storage.sync.get(['commands'], function(result) {
-        const commands = result.commands || defaultCommands;
-        showCommandMenu(menuContainer, commands, posTop, posLeft, (selectedCommand) => {
-          // Clear the slash character first
-          if (inputElement.tagName.toLowerCase() === 'textarea') {
-            inputElement.value = '';
-          } else {
-            inputElement.textContent = '';
-          }
-          
-          // Handle system prompt differently
-          if (selectedCommand.isSystemPrompt) {
-            const systemInput = findSystemPromptInput();
-            if (systemInput) {
-              openSystemPromptSection();
-              setTimeout(() => {
-                insertTemplate(systemInput, selectedCommand.template, false);
-                inputElement.focus();
-              }, 300);
-            } else {
-              openSystemPromptSection();
-              setTimeout(() => {
-                const newSystemInput = findSystemPromptInput();
-                if (newSystemInput) {
-                  insertTemplate(newSystemInput, selectedCommand.template, false);
-                  inputElement.focus();
-                }
-              }, 300);
-            }
-          } else {
-            // Insert other templates normally
-            insertTemplate(inputElement, selectedCommand.template, true);
-          }
-          menuContainer.style.display = 'none';
-        });
-      });
-    } else if (e.key === 'Escape' || (e.type === 'click' && !menuContainer.contains(e.target))) {
-      // Hide menu
-      menuContainer.style.display = 'none';
-    }
-  };
-  
-  // Add input event listeners
-  inputElement.addEventListener('input', eventHandler);
-  inputElement.addEventListener('keydown', eventHandler);
-  inputElement.addEventListener('keypress', eventHandler);
-  document.addEventListener('click', eventHandler);
+    const eventHandler = createInputEventHandler(inputElement, menuContainer);
+
+    // Add event listeners
+    inputElement.addEventListener('input', eventHandler);
+    inputElement.addEventListener('keydown', eventHandler);
+    inputElement.addEventListener('keypress', eventHandler);
+    document.addEventListener('click', eventHandler);
 }
 
-// Function to find system prompt input
-function findSystemPromptInput() {
-  // Try different selectors that might match the system prompt input
-  const systemInput = document.querySelector([
-    'textarea[placeholder*="system"]',
-    'textarea[placeholder*="System"]',
-    'textarea[aria-label*="system"]',
-    'textarea[aria-label*="System"]',
-    '[contenteditable="true"][aria-label*="system"]',
-    '[contenteditable="true"][aria-label*="System"]',
-    // Add more selectors if needed
-  ].join(','));
-  
-  return systemInput;
+// Create the command menu container
+function createMenuContainer() {
+    const menuContainer = document.createElement('div');
+    menuContainer.className = MENU_CONTAINER_CLASS;
+    menuContainer.style.display = 'none';
+    document.body.appendChild(menuContainer);
+    return menuContainer;
+}
+
+// Create input event handler
+function createInputEventHandler(inputElement, menuContainer) {
+    return function eventHandler(e) {
+        const currentContent = getInputContent(inputElement);
+        const isSlashInput = isSlashCommand(e, currentContent);
+
+        if (isSlashInput) {
+            e.preventDefault();
+            showSlashCommandMenu(inputElement, menuContainer);
+        } else if (e.key === 'Escape' || (e.type === 'click' && menuContainer && !menuContainer.contains(e.target))) {
+            hideCommandMenu(menuContainer);
+        }
+    };
+}
+
+// Get input content from the input element
+function getInputContent(inputElement) {
+    if (inputElement.tagName.toLowerCase() === 'textarea') {
+        return inputElement.value;
+    } else {
+        return inputElement.textContent;
+    }
+}
+
+// Check if the input is a slash command
+function isSlashCommand(event, currentContent) {
+    const slashEntered = (event.type === 'input' && event.data === '/') ||
+        (event.type === 'keydown' && event.key === '/') ||
+        (event.type === 'keypress' && event.key === '/');
+    return slashEntered && (currentContent.trim() === '/' || currentContent.trim() === '');
+}
+
+// Show the slash command menu
+function showSlashCommandMenu(inputElement, menuContainer) {
+    const rect = inputElement.getBoundingClientRect();
+    const lineHeight = parseInt(window.getComputedStyle(inputElement).lineHeight) || 20;
+    const posTop = rect.top + lineHeight;
+    const posLeft = rect.left + 20;
+
+    chrome.storage.sync.get(['commands'], function (result) {
+        const defaultCommands = [
+            {
+                name: 'System Prompt',
+                description: 'Set system prompt',
+                template: 'You are an AI assistant that specializes in [specialty]. When responding to queries about [topic], prioritize [approach].',
+                isSystemPrompt: true
+            },
+        ];
+        const commands = result.commands || defaultCommands;
+
+        // Show Command Menu
+        showCommandMenu(menuContainer, commands, posTop, posLeft, (selectedCommand) => {
+            clearInputElement(inputElement);
+            handleCommandSelection(inputElement, selectedCommand, menuContainer);
+        });
+    });
+}
+
+// Clear the content of the input element
+function clearInputElement(inputElement) {
+    if (inputElement.tagName.toLowerCase() === 'textarea') {
+        inputElement.value = '';
+    } else {
+        inputElement.textContent = '';
+    }
+}
+
+// Handle command selection
+function handleCommandSelection(inputElement, selectedCommand, menuContainer) {
+    if (selectedCommand.isSystemPrompt) {
+        handleSystemPrompt(inputElement, selectedCommand);
+    } else {
+        insertTemplate(inputElement, selectedCommand.template, true);
+    }
+    hideCommandMenu(menuContainer);
 }
 
 // Function to open system prompt section if it's not visible
 function openSystemPromptSection() {
-  // Try to find and click the button/element that opens system prompt
-  const systemButtons = Array.from(document.querySelectorAll('button, [role="button"]')).filter(button => {
-    const text = button.textContent.toLowerCase();
-    return text.includes('system') || text.includes('instruction');
-  });
-  
-  if (systemButtons.length > 0) {
-    systemButtons[0].click();
-    console.log('Opened system prompt section');
-  }
+    return new Promise(resolve => {
+        const systemInstructionsDiv = document.querySelector('.system-instructions');
+
+        if (!systemInstructionsDiv) {
+            console.log('System Instructions div not found.');
+            resolve();
+            return;
+        }
+
+        const isCollapsed = systemInstructionsDiv.classList.contains('collapsed');
+
+        if (isCollapsed) {
+            // More specific button selection
+            const systemButtons = Array.from(systemInstructionsDiv.querySelectorAll('button[aria-label="Collapse all System Instructions"]'));
+
+            if (systemButtons.length > 0) {
+                systemButtons[0].click();
+                console.log('Opened system prompt section');
+                // Introduce a short delay
+                setTimeout(resolve, 250);
+                return;
+            } else {
+                console.log('Could not find button to expand system prompt section.');
+            }
+        } else {
+            console.log('System prompt section already opened');
+        }
+        resolve();
+    });
+}
+
+// Function to wait for the system prompt textarea to appear
+function waitForSystemPrompt(retries = 3) {
+    return new Promise(resolve => {
+        let systemInput = findSystemPromptInput();
+        if (systemInput) {
+            resolve();
+            return;
+        }
+
+        let attempts = 0;
+
+        const observer = new MutationObserver(mutations => {
+            systemInput = findSystemPromptInput();
+            if (systemInput) {
+                observer.disconnect();
+                resolve();
+            }
+        });
+
+        observer.observe(document.body, {
+            childList: true,
+            subtree: true
+        });
+
+        function attemptFindInput() {
+            attempts++;
+            systemInput = findSystemPromptInput();
+            if (systemInput) {
+                observer.disconnect();
+                resolve();
+            } else if (attempts > retries) {
+                observer.disconnect();
+                console.log('System input not found after multiple retries.');
+                resolve();
+            } else {
+                setTimeout(attemptFindInput, 250);
+            }
+        }
+
+        // Initial attempt
+        attemptFindInput();
+
+        // Timeout after 3 seconds (still keep the timeout)
+        setTimeout(() => {
+            observer.disconnect();
+            console.log('Timeout waiting for system input.');
+            resolve();
+        }, 3000);
+    });
+}
+
+// Handle system prompt command
+async function handleSystemPrompt(inputElement, selectedCommand) {
+    await openSystemPromptSection();
+    await waitForSystemPrompt();
+
+    let systemInput = findSystemPromptInput();
+
+    if (!systemInput) {
+        console.log('System input not found after opening section.');
+        return;
+    }
+
+    insertTemplate(systemInput, selectedCommand.template, false);
+    inputElement.focus();
+
+    // Collapse the section after setting the prompt
+    const systemInstructionsDiv = document.querySelector('.system-instructions');
+    if (systemInstructionsDiv) {
+        const systemButtons = Array.from(systemInstructionsDiv.querySelectorAll('button[aria-label="Collapse all System Instructions"]'));
+        if (systemButtons.length > 0) {
+            systemButtons[0].click();
+            console.log('Collapsed system prompt section');
+        } else {
+            console.log('Could not find button to collapse system prompt section.');
+        }
+    }
+}
+
+// Hide the command menu
+function hideCommandMenu(menuContainer) {
+    menuContainer.style.display = 'none';
+}
+
+// Function to find system prompt input
+function findSystemPromptInput() {
+    return document.querySelector(SYSTEM_INSTRUCTIONS_SELECTOR);
 }
 
 // Show command menu
 function showCommandMenu(menuContainer, commands, top, left, onSelect) {
-  // Clear menu
-  menuContainer.innerHTML = '';
-  
-  // Set up content first to get actual dimensions
-  // Add menu title
-  const titleElement = document.createElement('div');
-  titleElement.className = 'menu-title';
-  titleElement.textContent = 'Select Command';
-  menuContainer.appendChild(titleElement);
-  
-  // Build menu options
-  commands.forEach((command, index) => {
-    const option = document.createElement('div');
-    option.className = 'menu-option';
-    if (index === 0) option.classList.add('selected');
-    
-    const optionContent = `
+    // Clear menu
+    if (!menuContainer) return;
+    menuContainer.innerHTML = '';
+
+    // Add menu title
+    const titleElement = document.createElement('div');
+    titleElement.className = 'menu-title';
+    titleElement.textContent = 'Select Command';
+    menuContainer.appendChild(titleElement);
+
+    // Build menu options
+    commands.forEach((command, index) => {
+        const option = document.createElement('div');
+        option.className = MENU_OPTION_CLASS;
+        if (index === 0) option.classList.add(SELECTED_CLASS);
+
+        const optionContent = `
       <div class="option-name">${command.name}</div>
       <div class="option-description">${command.description}</div>
     `;
-    
-    option.innerHTML = optionContent;
-    
-    // Click event
-    option.addEventListener('click', () => {
-      onSelect(command);
+
+        option.innerHTML = optionContent;
+
+        // Click event
+        option.addEventListener('click', () => {
+            onSelect(command);
+        });
+
+        menuContainer.appendChild(option);
     });
-    
-    menuContainer.appendChild(option);
-  });
 
-  // Temporarily show to get dimensions
-  menuContainer.style.visibility = 'hidden';
-  menuContainer.style.display = 'block';
-  
-  // Get viewport and menu dimensions
-  const viewport = {
-    width: window.innerWidth,
-    height: window.innerHeight
-  };
-  const menuRect = menuContainer.getBoundingClientRect();
-  
-  // Adjust position to ensure menu stays within viewport
-  let adjustedTop = top;
-  let adjustedLeft = left;
-  
-  // Check right boundary
-  if (left + menuRect.width > viewport.width) {
-    adjustedLeft = viewport.width - menuRect.width - 20;
-  }
-  
-  // Check bottom boundary
-  if (top + menuRect.height > viewport.height) {
-    adjustedTop = top - menuRect.height - 10; // Show above input
-  }
-  
-  // Ensure not beyond left and top edges
-  adjustedLeft = Math.max(10, adjustedLeft);
-  adjustedTop = Math.max(10, adjustedTop);
-  
-  // Set final position
-  menuContainer.style.top = `${adjustedTop}px`;
-  menuContainer.style.left = `${adjustedLeft}px`;
-  menuContainer.style.visibility = 'visible';
+    // Temporarily show to get dimensions
+    menuContainer.style.visibility = 'hidden';
+    menuContainer.style.display = 'block';
 
-  // Add up/down/Enter key functionality
-  document.addEventListener('keydown', function menuKeyHandler(e) {
-    if (menuContainer.style.display === 'none') {
-      document.removeEventListener('keydown', menuKeyHandler);
-      return;
+    // Get viewport and menu dimensions
+    const viewport = {
+        width: window.innerWidth,
+        height: window.innerHeight
+    };
+    const menuRect = menuContainer.getBoundingClientRect();
+
+    // Adjust position to ensure menu stays within viewport
+    let adjustedTop = top;
+    let adjustedLeft = left;
+
+    // Check right boundary
+    if (left + menuRect.width > viewport.width) {
+        adjustedLeft = viewport.width - menuRect.width - 20;
     }
-    
-    const selectedOption = menuContainer.querySelector('.selected');
-    
-    if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      const nextOption = selectedOption.nextElementSibling;
-      if (nextOption && nextOption.classList.contains('menu-option')) {
-        selectedOption.classList.remove('selected');
-        nextOption.classList.add('selected');
-        // Ensure selected item is visible
-        nextOption.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      const prevOption = selectedOption.previousElementSibling;
-      if (prevOption && prevOption.classList.contains('menu-option')) {
-        selectedOption.classList.remove('selected');
-        prevOption.classList.add('selected');
-        // Ensure selected item is visible
-        prevOption.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-      }
-    } else if (e.key === 'Enter') {
-      e.preventDefault();
-      const commandIndex = Array.from(menuContainer.querySelectorAll('.menu-option')).indexOf(selectedOption);
-      onSelect(commands[commandIndex]);
-      document.removeEventListener('keydown', menuKeyHandler);
-    } else if (e.key === 'Escape') {
-      e.preventDefault();
-      menuContainer.style.display = 'none';
-      document.removeEventListener('keydown', menuKeyHandler);
+
+    // Check bottom boundary
+    if (top + menuRect.height > viewport.height) {
+        adjustedTop = top - menuRect.height - 10; // Show above input
     }
-  });
+
+    // Ensure not beyond left and top edges
+    adjustedLeft = Math.max(10, adjustedLeft);
+    adjustedTop = Math.max(10, adjustedTop);
+
+    // Set final position
+    requestAnimationFrame(() => {
+        menuContainer.style.top = `${adjustedTop}px`;
+        menuContainer.style.left = `${adjustedLeft}px`;
+        menuContainer.style.visibility = 'visible';
+    });
+
+    // Add up/down/Enter key functionality
+    document.addEventListener('keydown', function menuKeyHandler(e) {
+        if (menuContainer.style.display === 'none') {
+            document.removeEventListener('keydown', menuKeyHandler);
+            return;
+        }
+
+        const selectedOption = menuContainer.querySelector('.' + SELECTED_CLASS);
+
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            const nextOption = selectedOption.nextElementSibling;
+            if (nextOption && nextOption.classList.contains(MENU_OPTION_CLASS)) {
+                selectedOption.classList.remove(SELECTED_CLASS);
+                nextOption.classList.add(SELECTED_CLASS);
+                nextOption.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        } else if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            const prevOption = selectedOption.previousElementSibling;
+            if (prevOption && prevOption.classList.contains(MENU_OPTION_CLASS)) {
+                selectedOption.classList.remove(SELECTED_CLASS);
+                prevOption.classList.add(SELECTED_CLASS);
+                prevOption.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+            }
+        } else if (e.key === 'Enter') {
+            e.preventDefault();
+            const commandIndex = Array.from(menuContainer.querySelectorAll('.' + MENU_OPTION_CLASS)).indexOf(selectedOption);
+            onSelect(commands[commandIndex]);
+            document.removeEventListener('keydown', menuKeyHandler);
+        } else if (e.key === 'Escape') {
+            e.preventDefault();
+            menuContainer.style.display = 'none';
+            document.removeEventListener('keydown', menuKeyHandler);
+        }
+    });
 }
 
 // Insert template into input field
 function insertTemplate(inputElement, template, shouldFocus = true) {
-  if (inputElement.tagName.toLowerCase() === 'textarea') {
-    // Override the entire content
-    inputElement.value = template;
-    
-    // Set cursor position to end
-    inputElement.selectionStart = template.length;
-    inputElement.selectionEnd = template.length;
-    
-    // Trigger change event
-    const event = new Event('input', { bubbles: true });
-    inputElement.dispatchEvent(event);
-  } else { // contenteditable
-    const selection = window.getSelection();
-    if (selection.rangeCount > 0) {
-      // Select all content
-      const range = document.createRange();
-      range.selectNodeContents(inputElement);
-      selection.removeAllRanges();
-      selection.addRange(range);
-      
-      // Replace with new content
-      const textNode = document.createTextNode(template);
-      range.deleteContents();
-      range.insertNode(textNode);
-      
-      // Reset selection range to after content
-      range.selectNodeContents(textNode);
-      range.collapse(false);
-      selection.removeAllRanges();
-      selection.addRange(range);
-      
-      // Trigger change event
-      const event = new Event('input', { bubbles: true });
-      inputElement.dispatchEvent(event);
+    if (inputElement.tagName.toLowerCase() === 'textarea') {
+        inputElement.value = template;
+        inputElement.selectionStart = template.length;
+        inputElement.selectionEnd = template.length;
+        const event = new Event('input', { bubbles: true });
+        inputElement.dispatchEvent(event);
+    } else {
+        const selection = window.getSelection();
+        if (selection.rangeCount > 0) {
+            const range = document.createRange();
+            range.selectNodeContents(inputElement);
+            selection.removeAllRanges();
+            selection.addRange(range);
+
+            const textNode = document.createTextNode(template);
+            range.deleteContents();
+            range.insertNode(textNode);
+
+            range.selectNodeContents(textNode);
+            range.collapse(false);
+            selection.removeAllRanges();
+            selection.addRange(range);
+
+            const event = new Event('input', { bubbles: true });
+            inputElement.dispatchEvent(event);
+        }
     }
-  }
-  
-  // Focus the input field only if shouldFocus is true
-  if (shouldFocus) {
-    inputElement.focus();
-  }
+
+    if (shouldFocus) {
+        inputElement.focus();
+    }
 }
 
 // Initialize on both events to ensure it runs
@@ -311,17 +402,16 @@ setTimeout(init, 1500);
 
 // Add MutationObserver to handle dynamic content
 const observer = new MutationObserver((mutations) => {
-  for (const mutation of mutations) {
-    if (mutation.addedNodes.length) {
-      setupSlashCommands();
+    for (const mutation of mutations) {
+        if (mutation.addedNodes.length) {
+            setupSlashCommands();
+        }
     }
-  }
 });
 
 observer.observe(document.body, {
-  childList: true,
-  subtree: true
+    childList: true,
+    subtree: true
 });
 
-// Log for debugging
-console.log('Content script loaded'); 
+console.log('Content script loaded');
