@@ -64,7 +64,7 @@ function createInputEventHandler(inputElement, menuContainer) {
         } else if (e.key === 'Escape' || (e.type === 'click' && menuContainer && !menuContainer.contains(e.target))) {
             hideCommandMenu(menuContainer);
         } else if (menuContainer.style.display !== 'none' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
-            // 確保當選單顯示時，輸入元素不捕獲方向鍵事件
+            // Ensure the input element doesn't capture arrow key events when the menu is displayed
             e.preventDefault();
         }
     };
@@ -330,10 +330,10 @@ function showCommandMenu(menuContainer, commands, top, left, onSelect) {
             return;
         }
 
-        // 處理方向鍵導航
+        // Handle arrow key navigation
         if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
-            e.preventDefault(); // 防止頁面捲動
-            e.stopPropagation(); // 防止事件冒泡到其他處理程序
+            e.preventDefault(); // Prevent page scrolling
+            e.stopPropagation(); // Prevent event bubbling to other handlers
 
             const options = Array.from(menuContainer.querySelectorAll('.' + MENU_OPTION_CLASS));
             const selectedOption = menuContainer.querySelector('.' + SELECTED_CLASS);
@@ -341,9 +341,9 @@ function showCommandMenu(menuContainer, commands, top, left, onSelect) {
             let nextIndex;
 
             if (e.key === 'ArrowDown') {
-                nextIndex = (currentIndex + 1) % options.length; // 循環到第一個
+                nextIndex = (currentIndex + 1) % options.length; // Cycle to the first
             } else { // ArrowUp
-                nextIndex = (currentIndex - 1 + options.length) % options.length; // 循環到最後一個
+                nextIndex = (currentIndex - 1 + options.length) % options.length; // Cycle to the last
             }
 
             if (selectedOption) selectedOption.classList.remove(SELECTED_CLASS);
@@ -365,7 +365,7 @@ function showCommandMenu(menuContainer, commands, top, left, onSelect) {
         }
     };
 
-    // 移除任何現有的 keydown 事件監聽器並添加新的
+    // Remove any existing keydown event listeners and add the new one
     document.removeEventListener('keydown', menuKeyHandler);
     document.addEventListener('keydown', menuKeyHandler, { capture: true });
 }
