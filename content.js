@@ -25,23 +25,72 @@ const DEFAULT_COMMANDS = [
 // Cached DOM elements
 let menuContainer = null;
 let inputAreas = [];
+// Store initialized elements and their cleanup functions
+const initializedElements = new WeakMap();
+// Global event handlers reference for cleanup
+let globalEventHandlers = [];
 
 // Main initialization
 function init() {
+    // Only initialize once
+    if (menuContainer) {
+        console.log('Google AI Studio Helper already initialized');
+        return;
+    }
     menuContainer = createMenuContainer(); // Create menu container only once
     setupSlashCommands();
     console.log('Google AI Studio Helper initialized');
+    
+    // Add cleanup on page unload
+    window.addEventListener('unload', cleanup);
+}
+
+// Global cleanup function
+function cleanup() {
+    console.log('Cleaning up Google AI Studio Helper resources');
+    
+    // Clean up any global event handlers
+    globalEventHandlers.forEach(handler => {
+        document.removeEventListener('keydown', handler.fn, handler.options);
+        document.removeEventListener('click', handler.fn, handler.options);
+    });
+    globalEventHandlers = [];
+    
+    // Stop the observer
+    if (window.__aiStudioObserver) {
+        window.__aiStudioObserver.disconnect();
+        window.__aiStudioObserver = null;
+    }
+    
+    // Remove the menu container
+    if (menuContainer && menuContainer.parentNode) {
+        menuContainer.parentNode.removeChild(menuContainer);
+        menuContainer = null;
+    }
 }
 
 // Setup slash commands functionality
 function setupSlashCommands() {
     const newInputAreas = document.querySelectorAll('textarea, [contenteditable="true"], .ProseMirror, .cm-content');
 
+    // Check for any removed elements and clean them up
+    inputAreas.forEach(oldInput => {
+        if (!document.body.contains(oldInput) && initializedElements.has(oldInput)) {
+            // Call cleanup function for this element
+            const cleanup = initializedElements.get(oldInput);
+            if (typeof cleanup === 'function') {
+                cleanup();
+            }
+            initializedElements.delete(oldInput);
+        }
+    });
+
+    // Initialize new elements
     newInputAreas.forEach(inputArea => {
-        if (!inputArea.dataset.slashCommandsInitialized) {
+        if (!initializedElements.has(inputArea)) {
             console.log('Initializing slash commands for:', inputArea);
-            initializeSlashCommands(inputArea);
-            inputArea.dataset.slashCommandsInitialized = "true";
+            const cleanup = initializeSlashCommands(inputArea);
+            initializedElements.set(inputArea, cleanup);
         }
     });
 
@@ -55,8 +104,13 @@ function initializeSlashCommands(inputElement) {
     // Add event listeners
     inputElement.addEventListener('input', eventHandler);
     inputElement.addEventListener('keydown', eventHandler);
-    inputElement.addEventListener('keypress', eventHandler);
-    document.addEventListener('click', eventHandler);
+    
+    // Return cleanup function
+    return function cleanupInputElement() {
+        console.log('Cleaning up event listeners for input element');
+        inputElement.removeEventListener('input', eventHandler);
+        inputElement.removeEventListener('keydown', eventHandler);
+    };
 }
 
 // Create the command menu container
@@ -77,13 +131,44 @@ function createInputEventHandler(inputElement, menuContainer) {
         if (isSlashInput) {
             e.preventDefault();
             showSlashCommandMenu(inputElement, menuContainer);
-        } else if (e.key === 'Escape' || (e.type === 'click' && menuContainer && !menuContainer.contains(e.target))) {
+        } else if (e.key === 'Escape') {
             hideCommandMenu(menuContainer);
         } else if (menuContainer.style.display !== 'none' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
             // Ensure the input element doesn't capture arrow key events when the menu is displayed
             e.preventDefault();
         }
     };
+}
+
+// Document click handler (used separately for proper management)
+function handleDocumentClick(e) {
+    if (menuContainer && menuContainer.style.display !== 'none' && !menuContainer.contains(e.target)) {
+        hideCommandMenu(menuContainer);
+    }
+}
+
+// Register document click handler with tracking for cleanup
+function registerDocumentClickHandler() {
+    // Remove any existing handler first to prevent duplicates
+    unregisterDocumentClickHandler();
+    
+    // Add the click handler with tracking
+    document.addEventListener('click', handleDocumentClick);
+    globalEventHandlers.push({
+        fn: handleDocumentClick,
+        options: false
+    });
+}
+
+// Unregister document click handler
+function unregisterDocumentClickHandler() {
+    globalEventHandlers = globalEventHandlers.filter(handler => {
+        if (handler.fn === handleDocumentClick) {
+            document.removeEventListener('click', handler.fn, handler.options);
+            return false;
+        }
+        return true;
+    });
 }
 
 // Get input content from the input element
@@ -98,8 +183,7 @@ function getInputContent(inputElement) {
 // Check if the input is a slash command
 function isSlashCommand(event, currentContent) {
     const slashEntered = (event.type === 'input' && event.data === '/') ||
-        (event.type === 'keydown' && event.key === '/') ||
-        (event.type === 'keypress' && event.key === '/');
+        (event.type === 'keydown' && event.key === '/');
     return slashEntered && (currentContent.trim() === '/' || currentContent.trim() === '');
 }
 
@@ -109,6 +193,9 @@ function showSlashCommandMenu(inputElement, menuContainer) {
     const lineHeight = parseInt(window.getComputedStyle(inputElement).lineHeight) || 20;
     const posTop = rect.top + lineHeight;
     const posLeft = rect.left + 20;
+
+    // Register document click handler when showing the menu
+    registerDocumentClickHandler();
 
     // FIX: Wrap in try-catch and use DEFAULT_COMMANDS as fallback if storage API fails
     try {
@@ -201,11 +288,14 @@ function waitForSystemPrompt(retries = 3) {
         }
 
         let attempts = 0;
-
+        let timeoutId = null;
         const observer = new MutationObserver(mutations => {
             systemInput = findSystemPromptInput();
             if (systemInput) {
                 observer.disconnect();
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                }
                 resolve();
             }
         });
@@ -220,6 +310,9 @@ function waitForSystemPrompt(retries = 3) {
             systemInput = findSystemPromptInput();
             if (systemInput) {
                 observer.disconnect();
+                if (timeoutId) {
+                    clearTimeout(timeoutId);
+                }
                 resolve();
             } else if (attempts > retries) {
                 observer.disconnect();
@@ -234,7 +327,7 @@ function waitForSystemPrompt(retries = 3) {
         attemptFindInput();
 
         // Timeout after 3 seconds (still keep the timeout)
-        setTimeout(() => {
+        timeoutId = setTimeout(() => {
             observer.disconnect();
             console.log('Timeout waiting for system input.');
             resolve();
@@ -273,6 +366,9 @@ async function handleSystemPrompt(inputElement, selectedCommand) {
 // Hide the command menu
 function hideCommandMenu(menuContainer) {
     menuContainer.style.display = 'none';
+    
+    // Clean up document click handler when hiding the menu
+    unregisterDocumentClickHandler();
 }
 
 // Function to find system prompt input
@@ -352,7 +448,8 @@ function showCommandMenu(menuContainer, commands, top, left, onSelect) {
     // Create a dedicated global key handler for the menu navigation
     const menuKeyHandler = function(e) {
         if (menuContainer.style.display === 'none') {
-            document.removeEventListener('keydown', menuKeyHandler);
+            // Clean up the handler if menu is no longer visible
+            removeMenuKeyHandler(menuKeyHandler);
             return;
         }
 
@@ -383,17 +480,42 @@ function showCommandMenu(menuContainer, commands, top, left, onSelect) {
                 const commandIndex = Array.from(menuContainer.querySelectorAll('.' + MENU_OPTION_CLASS)).indexOf(selectedOption);
                 onSelect(commands[commandIndex]);
             }
-            document.removeEventListener('keydown', menuKeyHandler);
+            removeMenuKeyHandler(menuKeyHandler);
         } else if (e.key === 'Escape') {
             e.preventDefault();
             hideCommandMenu(menuContainer);
-            document.removeEventListener('keydown', menuKeyHandler);
+            removeMenuKeyHandler(menuKeyHandler);
         }
     };
 
-    // Remove any existing keydown event listeners and add the new one
-    document.removeEventListener('keydown', menuKeyHandler);
-    document.addEventListener('keydown', menuKeyHandler, { capture: true });
+    // Register the menuKeyHandler with proper tracking
+    registerMenuKeyHandler(menuKeyHandler);
+}
+
+// Register menu key handler with tracking for cleanup
+function registerMenuKeyHandler(handler) {
+    // Remove any prior menu key handlers to prevent duplicates
+    globalEventHandlers = globalEventHandlers.filter(h => {
+        if (h.type === 'menuKeyHandler') {
+            document.removeEventListener('keydown', h.fn, h.options);
+            return false;
+        }
+        return true;
+    });
+
+    // Add the new handler with tracking info
+    document.addEventListener('keydown', handler, { capture: true });
+    globalEventHandlers.push({
+        fn: handler,
+        options: { capture: true },
+        type: 'menuKeyHandler'
+    });
+}
+
+// Remove a specific menu key handler
+function removeMenuKeyHandler(handler) {
+    document.removeEventListener('keydown', handler, { capture: true });
+    globalEventHandlers = globalEventHandlers.filter(h => h.fn !== handler);
 }
 
 // Insert template into input field
@@ -439,15 +561,34 @@ window.addEventListener('load', init);
 setTimeout(init, 1500);
 
 // Add MutationObserver to handle dynamic content
-const observer = new MutationObserver((mutations) => {
+window.__aiStudioObserver = new MutationObserver((mutations) => {
+    let hasRelevantChanges = false;
+    
+    // Check if any mutation contains input elements we care about
     for (const mutation of mutations) {
         if (mutation.addedNodes.length) {
-            setupSlashCommands();
+            for (const node of mutation.addedNodes) {
+                if (node.nodeType === 1) { // Element node
+                    // Check if the node is an input element or contains input elements
+                    if (node.matches('textarea, [contenteditable="true"], .ProseMirror, .cm-content') || 
+                        node.querySelector('textarea, [contenteditable="true"], .ProseMirror, .cm-content')) {
+                        hasRelevantChanges = true;
+                        break;
+                    }
+                }
+            }
         }
+        
+        if (hasRelevantChanges) break;
+    }
+    
+    // Only call setupSlashCommands if we found relevant changes
+    if (hasRelevantChanges) {
+        setupSlashCommands();
     }
 });
 
-observer.observe(document.body, {
+window.__aiStudioObserver.observe(document.body, {
     childList: true,
     subtree: true
 });
