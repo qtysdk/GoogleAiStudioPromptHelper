@@ -40,7 +40,7 @@ function init() {
     menuContainer = createMenuContainer(); // Create menu container only once
     setupSlashCommands();
     console.log('Google AI Studio Helper initialized');
-    
+
     // Add cleanup on page unload
     window.addEventListener('unload', cleanup);
 }
@@ -48,20 +48,20 @@ function init() {
 // Global cleanup function
 function cleanup() {
     console.log('Cleaning up Google AI Studio Helper resources');
-    
+
     // Clean up any global event handlers
     globalEventHandlers.forEach(handler => {
         document.removeEventListener('keydown', handler.fn, handler.options);
         document.removeEventListener('click', handler.fn, handler.options);
     });
     globalEventHandlers = [];
-    
+
     // Stop the observer
     if (window.__aiStudioObserver) {
         window.__aiStudioObserver.disconnect();
         window.__aiStudioObserver = null;
     }
-    
+
     // Remove the menu container
     if (menuContainer && menuContainer.parentNode) {
         menuContainer.parentNode.removeChild(menuContainer);
@@ -104,7 +104,7 @@ function initializeSlashCommands(inputElement) {
     // Add event listeners
     inputElement.addEventListener('input', eventHandler);
     inputElement.addEventListener('keydown', eventHandler);
-    
+
     // Return cleanup function
     return function cleanupInputElement() {
         console.log('Cleaning up event listeners for input element');
@@ -133,7 +133,7 @@ function createInputEventHandler(inputElement, menuContainer) {
             showSlashCommandMenu(inputElement, menuContainer);
         } else if (e.key === 'Escape') {
             hideCommandMenu(menuContainer);
-        } else if (menuContainer.style.display !== 'none' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
+        } else if (menuContainer && menuContainer.style.display !== 'none' && (e.key === 'ArrowUp' || e.key === 'ArrowDown')) {
             // Ensure the input element doesn't capture arrow key events when the menu is displayed
             e.preventDefault();
         }
@@ -151,7 +151,7 @@ function handleDocumentClick(e) {
 function registerDocumentClickHandler() {
     // Remove any existing handler first to prevent duplicates
     unregisterDocumentClickHandler();
-    
+
     // Add the click handler with tracking
     document.addEventListener('click', handleDocumentClick);
     globalEventHandlers.push({
@@ -366,7 +366,7 @@ async function handleSystemPrompt(inputElement, selectedCommand) {
 // Hide the command menu
 function hideCommandMenu(menuContainer) {
     menuContainer.style.display = 'none';
-    
+
     // Clean up document click handler when hiding the menu
     unregisterDocumentClickHandler();
 }
@@ -563,14 +563,14 @@ setTimeout(init, 1500);
 // Add MutationObserver to handle dynamic content
 window.__aiStudioObserver = new MutationObserver((mutations) => {
     let hasRelevantChanges = false;
-    
+
     // Check if any mutation contains input elements we care about
     for (const mutation of mutations) {
         if (mutation.addedNodes.length) {
             for (const node of mutation.addedNodes) {
                 if (node.nodeType === 1) { // Element node
                     // Check if the node is an input element or contains input elements
-                    if (node.matches('textarea, [contenteditable="true"], .ProseMirror, .cm-content') || 
+                    if (node.matches('textarea, [contenteditable="true"], .ProseMirror, .cm-content') ||
                         node.querySelector('textarea, [contenteditable="true"], .ProseMirror, .cm-content')) {
                         hasRelevantChanges = true;
                         break;
@@ -578,10 +578,10 @@ window.__aiStudioObserver = new MutationObserver((mutations) => {
                 }
             }
         }
-        
+
         if (hasRelevantChanges) break;
     }
-    
+
     // Only call setupSlashCommands if we found relevant changes
     if (hasRelevantChanges) {
         setupSlashCommands();
