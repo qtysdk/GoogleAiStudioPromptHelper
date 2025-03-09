@@ -25,8 +25,11 @@ const DEFAULT_COMMANDS = [
 // Cached DOM elements
 let menuContainer = null;
 let inputAreas = [];
+
+let isToastActive = false;
 // Store initialized elements and their cleanup functions
 const initializedElements = new WeakMap();
+
 // Global event handlers reference for cleanup
 let globalEventHandlers = [];
 
@@ -45,6 +48,30 @@ function init() {
     window.addEventListener('unload', cleanup);
 }
 
+// Function to show a toast message
+function showToast(message) {
+    if (isToastActive) return;
+    isToastActive = true;
+
+    const toast = document.createElement('div');
+    toast.style.cssText = `
+        position: fixed;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background-color: rgba(0, 0, 0, 0.7);
+        color: white;
+        padding: 10px 20px;
+        border-radius: 5px;
+        z-index: 100000;
+    `;
+    toast.textContent = message;
+    document.body.appendChild(toast);
+    setTimeout(() => {
+        toast.remove();
+        isToastActive = false;
+    }, 10000);
+}
 // Global cleanup function
 function cleanup() {
     console.log('Cleaning up Google AI Studio Helper resources');
@@ -190,6 +217,12 @@ function isSlashCommand(event, currentContent) {
 // Show the slash command menu
 function showSlashCommandMenu(inputElement, menuContainer) {
     const rect = inputElement.getBoundingClientRect();
+
+    if (!menuContainer) {
+        showToast('Google AI Studio Helper Error: Please reload the page.');
+        return;
+    }
+
     const lineHeight = parseInt(window.getComputedStyle(inputElement).lineHeight) || 20;
     const posTop = rect.top + lineHeight;
     const posLeft = rect.left + 20;
