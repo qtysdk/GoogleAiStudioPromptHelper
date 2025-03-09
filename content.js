@@ -45,11 +45,11 @@ function cleanup() {
 // Setup slash commands functionality
 function setupSlashCommands() {
     const newInputAreas = document.querySelectorAll("textarea, [contenteditable=\"true\"], .ProseMirror, .cm-content");
+    const newInputAreasArray = Array.from(newInputAreas); // Convert to array for easier indexing
 
-    // Check for any removed elements and clean them up
+    // Clean up ALL previously initialized elements
     inputAreas.forEach(oldInput => {
-        if (!document.body.contains(oldInput) && initializedElements.has(oldInput)) {
-            // Call cleanup function for this element
+        if (initializedElements.has(oldInput)) {
             const cleanup = initializedElements.get(oldInput);
             if (typeof cleanup === "function") {
                 cleanup();
@@ -58,16 +58,16 @@ function setupSlashCommands() {
         }
     });
 
-    // Initialize new elements
-    newInputAreas.forEach(inputArea => {
-        if (!initializedElements.has(inputArea)) {
-            console.log("Initializing slash commands for:", inputArea);
-            const cleanup = initializeSlashCommands(inputArea);
-            initializedElements.set(inputArea, cleanup);
-        }
-    });
+    // Initialize ONLY the last element, if any
+    if (newInputAreasArray.length > 0) {
+        const lastInputArea = newInputAreasArray[newInputAreasArray.length - 1];
 
-    inputAreas = Array.from(newInputAreas); // Update inputAreas
+        console.log("Initializing slash commands for last input area:", lastInputArea);
+        const cleanup = initializeSlashCommands(lastInputArea);
+        initializedElements.set(lastInputArea, cleanup);
+    }
+
+    inputAreas = (newInputAreasArray.length > 0) ? [newInputAreasArray[newInputAreasArray.length - 1]] : []; // Update inputAreas to only contain the last element, or be empty if there are no elements
 }
 
 // Initialize slash commands for a single input element
