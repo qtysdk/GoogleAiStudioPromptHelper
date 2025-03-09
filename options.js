@@ -41,7 +41,7 @@ function displayCommands(commands) {
     commandHTML += '</label>';
     commandHTML += '</div>';
     commandHTML += '<div class="button-group">';
-    commandHTML += '<button class="delete-btn" onclick="deleteCommand(' + index + ')">Delete</button>';
+    commandHTML += '<button class="delete-btn" data-index="' + index + '">Delete</button>';
     commandHTML += '</div>';
     commandDiv.innerHTML = commandHTML;
     container.appendChild(commandDiv);
@@ -89,7 +89,15 @@ function addCommand() {
 // Delete command
 function deleteCommand(index) {
   const commandItems = document.querySelectorAll('.command-item');
-  commandItems[index].remove();
+  let commands = [];
+  chrome.storage.sync.get(['commands'], function (result) {
+    commands = result.commands || [];
+    commands.splice(index, 1);
+    chrome.storage.sync.set({ commands: commands }, function () {
+      alert('Command deleted successfully!');
+      loadCommands(); // Reload to reflect changes
+    });
+  });
 }
 
 // Restore Defaults
@@ -111,8 +119,20 @@ function restoreDefaults() {
   });
 }
 
+// Attach event listeners to dynamically created delete buttons
+function attachDeleteListeners() {
+  const container = document.getElementById('commandList');
+  container.addEventListener('click', function(event) {
+    if (event.target.classList.contains('delete-btn')) {
+      const index = event.target.dataset.index;
+      deleteCommand(index);
+    }
+  });
+}
+
 // Initialize
 document.addEventListener('DOMContentLoaded', loadCommands);
+document.addEventListener('DOMContentLoaded', attachDeleteListeners);
 document.getElementById('addCommand').addEventListener('click', addCommand);
 document.getElementById('saveAll').addEventListener('click', saveCommands);
 document.getElementById('restoreDefaults').addEventListener('click', restoreDefaults);
