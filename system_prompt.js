@@ -125,3 +125,4 @@ async function handleSystemPrompt(inputElement, selectedCommand) {
 function findSystemPromptInput() {
     return document.querySelector(SYSTEM_INSTRUCTIONS_SELECTOR);
 }
+

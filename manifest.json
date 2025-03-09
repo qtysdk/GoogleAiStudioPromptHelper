@@ -14,7 +14,10 @@
       ],
       "js": [
         "utils.js",
+        "toast.js",
         "commands.js",
+        "menu.js",
+        "event_handler.js",
         "system_prompt.js",
         "content.js"
       ],
