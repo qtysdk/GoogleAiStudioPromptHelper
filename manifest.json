@@ -1,19 +1,30 @@
 {
-    "manifest_version": 3,
-    "name": "Google AI Studio Helper",
-    "version": "1.0",
-    "description": "Add Notion-like slash commands to Google AI Studio",
-    "permissions": ["activeTab", "storage"],
-    "content_scripts": [
-      {
-        "matches": ["*://aistudio.google.com/*"],
-        "js": ["utils.js", "content.js"],
-        "css": ["styles.css"]
-      }
-    ],
-    "options_page": "options.html",
-    "icons": {
-      "48": "icons/icon48.png",
-      "128": "icons/icon128.png"
+  "manifest_version": 3,
+  "name": "Google AI Studio Helper",
+  "version": "1.0",
+  "description": "Add Notion-like slash commands to Google AI Studio",
+  "permissions": [
+    "activeTab",
+    "storage"
+  ],
+  "content_scripts": [
+    {
+      "matches": [
+        "*://aistudio.google.com/*"
+      ],
+      "js": [
+        "utils.js",
+        "commands.js",
+        "content.js"
+      ],
+      "css": [
+        "styles.css"
+      ]
     }
+  ],
+  "options_page": "options.html",
+  "icons": {
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  }
 }
