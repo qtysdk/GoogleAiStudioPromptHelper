@@ -16,10 +16,22 @@ const defaultCommands = [
 
 // Load commands from storage
 function loadCommands() {
-  chrome.storage.sync.get(['commands'], function(result) {
-    const commands = result.commands || []; // Start with an empty array if nothing is stored
-    displayCommands(commands);
-  });
+  try {
+    chrome.storage.sync.get(['commands'], function(result) {
+      try {
+        const commands = result.commands || []; // Start with an empty array if nothing is stored
+        displayCommands(commands);
+      } catch (e) {
+        console.error("Error processing commands from storage:", e);
+        showToast("Error processing commands from storage. Loading defaults.");
+        displayCommands(defaultCommands);
+      }
+    });
+  } catch (e) {
+    console.error("Error accessing chrome.storage.sync:", e);
+    showToast("Error accessing storage. Loading defaults.");
+    displayCommands(defaultCommands);
+  }
 }
 
 // Display commands in the UI
@@ -58,10 +70,20 @@ function saveCommands() {
     isSystemPrompt: item.querySelector('.is-system-prompt').checked
   }));
 
-  chrome.storage.sync.set({ commands }, function() {
-    alert('Commands saved successfully!');
-    loadCommands(); // Reload to reflect changes
-  });
+  try {
+    chrome.storage.sync.set({ commands }, function() {
+      if (chrome.runtime.lastError) {
+        console.error("Error saving commands:", chrome.runtime.lastError);
+        showToast("Error saving commands to storage.");
+      } else {
+        showToast('Commands saved successfully!');
+      }
+      loadCommands(); // Reload to reflect changes
+    });
+  } catch (e) {
+    console.error("Error accessing chrome.storage.sync:", e);
+    showToast("Error accessing storage. Commands not saved.");
+  }
 }
 
 // Add new command
@@ -88,35 +110,69 @@ function addCommand() {
 
 // Delete command
 function deleteCommand(index) {
-  const commandItems = document.querySelectorAll('.command-item');
-  let commands = [];
-  chrome.storage.sync.get(['commands'], function (result) {
-    commands = result.commands || [];
-    commands.splice(index, 1);
-    chrome.storage.sync.set({ commands: commands }, function () {
-      alert('Command deleted successfully!');
-      loadCommands(); // Reload to reflect changes
+  try {
+    chrome.storage.sync.get(['commands'], function (result) {
+      try {
+        let commands = result.commands || [];
+        commands.splice(index, 1);
+        chrome.storage.sync.set({ commands: commands }, function () {
+          if (chrome.runtime.lastError) {
+            console.error("Error deleting command:", chrome.runtime.lastError);
+            showToast("Error deleting command from storage.");
+          } else {
+            showToast('Command deleted successfully!');
+          }
+          loadCommands(); // Reload to reflect changes
+        });
+      } catch (e) {
+        console.error("Error processing commands:", e);
+        showToast("Error processing commands. Deletion failed.");
+      }
     });
-  });
+  } catch (e) {
+    console.error("Error accessing chrome.storage.sync:", e);
+    showToast("Error accessing storage. Deletion failed.");
+  }
 }
 
 // Restore Defaults
 function restoreDefaults() {
-  chrome.storage.sync.get(['commands'], function(result) {
-    let existingCommands = result.commands || [];
-    const existingCommandNames = existingCommands.map(cmd => cmd.name);
+  try {
+    chrome.storage.sync.get(['commands'], function(result) {
+      try {
+        let existingCommands = result.commands || [];
+        const existingCommandNames = existingCommands.map(cmd => cmd.name);
 
-    defaultCommands.forEach(defaultCommand => {
-      if (!existingCommandNames.includes(defaultCommand.name)) {
-        existingCommands.push(defaultCommand);
+        let newCommandsAdded = false;
+        defaultCommands.forEach(defaultCommand => {
+          if (!existingCommandNames.includes(defaultCommand.name)) {
+            existingCommands.push(defaultCommand);
+            newCommandsAdded = true;
+          }
+        });
+
+        chrome.storage.sync.set({ commands: existingCommands }, function() {
+          if (chrome.runtime.lastError) {
+            console.error("Error restoring defaults:", chrome.runtime.lastError);
+            showToast("Error restoring default commands.");
+          } else {
+            if (newCommandsAdded) {
+              showToast('Default commands restored (if missing)!');
+            } else {
+              showToast('No missing default commands found.');
+            }
+          }
+          loadCommands(); // Reload to reflect changes
+        });
+      } catch (e) {
+        console.error("Error processing commands:", e);
+        showToast("Error processing commands. Restore defaults failed.");
       }
     });
-
-    chrome.storage.sync.set({ commands: existingCommands }, function() {
-      alert('Default commands restored (if missing)!');
-      loadCommands(); // Reload to reflect changes
-    });
-  });
+  } catch (e) {
+    console.error("Error accessing chrome.storage.sync:", e);
+    showToast("Error accessing storage. Restore defaults failed.");
+  }
 }
 
 // Attach event listeners to dynamically created delete buttons
