@@ -9,6 +9,13 @@ const DEFAULT_COMMANDS = [
         isSystemPrompt: true
     },
     {
+        name: "Upload Python POC",
+        description: "Simulate uploading a Python file",
+        template: "/* UPLOAD_PYTHON_POC */",
+        isSystemPrompt: false,
+        isUploadPythonPOC: true
+    },
+    {
         name: "Project Review",
         description: "Analyze source code before collaboration",
         template: "Please carefully analyze the attached source code to understand the project's structure, functionality, and dependencies. Wait for my instructions before proceeding.",
@@ -20,6 +27,8 @@ const DEFAULT_COMMANDS = [
 function handleCommandSelection(inputElement, selectedCommand, menuContainer, onCommandComplete) {
     if (selectedCommand.isSystemPrompt) {
         handleSystemPrompt(inputElement, selectedCommand);
+    } else if (selectedCommand.isUploadPythonPOC) {
+        handleUploadPythonPOC(inputElement, selectedCommand);
     } else {
         insertTemplate(inputElement, selectedCommand.template, true);
     }
