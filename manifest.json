@@ -15,6 +15,7 @@
       "js": [
         "utils.js",
         "commands.js",
+        "system_prompt.js",
         "content.js"
       ],
       "css": [

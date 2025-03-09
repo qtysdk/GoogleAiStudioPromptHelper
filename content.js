@@ -4,7 +4,6 @@
 const MENU_CONTAINER_CLASS = 'slash-command-menu';
 const MENU_OPTION_CLASS = 'menu-option';
 const SELECTED_CLASS = 'selected';
-const SYSTEM_INSTRUCTIONS_SELECTOR = 'textarea[aria-label="System instructions"]';
 
 // Cached DOM elements
 let menuContainer = null;
@@ -221,7 +220,7 @@ function showSlashCommandMenu(inputElement, menuContainer) {
     } catch (error) {
         console.error('Failed to access chrome.storage:', error);
         // Fallback to default commands when storage API completely fails
-        showCommandMenu(menuContainer, DEFAULT_COMMANDS, posTop, posLeft, (selectedCommand) => {
+        showCommandMenu(menuContainer, commands, posTop, posLeft, (selectedCommand) => {
             clearInputElement(inputElement);
             handleCommandSelection(inputElement, selectedCommand, menuContainer);
         });
@@ -245,96 +244,6 @@ function handleCommandSelection(inputElement, selectedCommand, menuContainer) {
         insertTemplate(inputElement, selectedCommand.template, true);
     }
     hideCommandMenu(menuContainer);
-}
-
-// Function to open system prompt section if it's not visible
-function openSystemPromptSection() {
-    return new Promise(resolve => {
-        const systemInstructionsDiv = document.querySelector('.system-instructions');
-
-        if (!systemInstructionsDiv) {
-            console.log('System Instructions div not found.');
-            resolve();
-            return;
-        }
-
-        const isCollapsed = systemInstructionsDiv.classList.contains('collapsed');
-
-        if (isCollapsed) {
-            // More specific button selection
-            const systemButtons = Array.from(systemInstructionsDiv.querySelectorAll('button[aria-label="Collapse all System Instructions"]'));
-
-            if (systemButtons.length > 0) {
-                systemButtons[0].click();
-                console.log('Opened system prompt section');
-                // Introduce a short delay
-                setTimeout(resolve, 250);
-                return;
-            } else {
-                console.log('Could not find button to expand system prompt section.');
-            }
-        } else {
-            console.log('System prompt section already opened');
-        }
-        resolve();
-    });
-}
-
-// Function to wait for the system prompt textarea to appear
-function waitForSystemPrompt(retries = 3) {
-    return new Promise(resolve => {
-        let systemInput = findSystemPromptInput();
-        if (systemInput) {
-            resolve();
-            return;
-        }
-
-        let attempts = 0;
-        let timeoutId = null;
-        const observer = new MutationObserver(mutations => {
-            systemInput = findSystemPromptInput();
-            if (systemInput) {
-                observer.disconnect();
-                if (timeoutId) {
-                    clearTimeout(timeoutId);
-                }
-                resolve();
-            }
-        });
-
-        observer.observe(document.body, {
-            childList: true,
-            subtree: true
-        });
-
-        function attemptFindInput() {
-            attempts++;
-            systemInput = findSystemPromptInput();
-            if (systemInput) {
-                observer.disconnect();
-                if (timeoutId) {
-                    clearTimeout(timeoutId);
-                }
-                resolve();
-            } else if (attempts > retries) {
-                observer.disconnect();
-                console.log('System input not found after multiple retries.');
-                resolve();
-            } else {
-                setTimeout(attemptFindInput, 250);
-            }
-        }
-
-        // Initial attempt
-        attemptFindInput();
-
-        // Timeout after 3 seconds (still keep the timeout)
-        timeoutId = setTimeout(() => {
-            observer.disconnect();
-            console.log('Timeout waiting for system input.');
-            resolve();
-        }, 3000);
-    });
 }
 
 // Handle system prompt command
@@ -371,11 +280,6 @@ function hideCommandMenu(menuContainer) {
 
     // Clean up document click handler when hiding the menu
     unregisterDocumentClickHandler();
-}
-
-// Function to find system prompt input
-function findSystemPromptInput() {
-    return document.querySelector(SYSTEM_INSTRUCTIONS_SELECTOR);
 }
 
 // Show command menu
